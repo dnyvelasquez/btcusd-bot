@@ -10,7 +10,7 @@
   "MAX_CONSEC_LOSS_DAYS": 0,
   "MAX_DAILY_LOSSES": 2,
   "TELEGRAM_ENABLED": false,
-  "LICENSE_KEY": "",
+  "LICENSE_KEY": "bf927cd0-ad2f-46ad-8a0d-5bb1a25cdd26",
   "BLOCKED_HOURS": [
     { "from": "00:00", "to": "08:00", "label": "Off-hours (low volume)" },
     { "from": "17:00", "to": "00:00", "label": "Off-hours (low volume)" }

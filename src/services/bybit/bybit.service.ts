@@ -55,7 +55,7 @@ export class BybitService {
       return {
         success: true,
         data: {
-          login: 0,
+          login: 497598060,
           tradeMode: env.BYBIT_TESTNET ? 'DEMO' : 'REAL',
           balance: parseFloat(usdt.walletBalance),
           equity: parseFloat(usdt.equity),
