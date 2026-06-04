@@ -8,6 +8,7 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "backtest": "tsx -r tsconfig-paths/register src/backtest/index.ts",
     "lint": "eslint ."
   },
   "dependencies": {
