@@ -1,14 +1,13 @@
 {
   "name": "btcusd-bot",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "tsx watch -r tsconfig-paths/register src/main.ts",
+    "dev": "tsx watch --env-file=.env -r tsconfig-paths/register src/main.ts",
     "build": "tsup src/main.ts --format esm,cjs --dts",
     "start": "node dist/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "backtest": "tsx -r tsconfig-paths/register src/backtest/index.ts",
+    "backtest": "tsx --env-file=.env -r tsconfig-paths/register src/backtest/index.ts",
     "lint": "eslint ."
   },
   "dependencies": {
