@@ -1,0 +1,3 @@
+@echo off
+echo Starting BTC Bot...
+npm run dev

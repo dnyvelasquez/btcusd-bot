@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+bot-status.json
+license-cache.json
+backtest-*.json
+logs/
