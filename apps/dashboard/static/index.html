@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC Bot — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+      --accent: #f7931a; --green: #22c55e; --red: #ef4444;
+      --yellow: #f59e0b; --text: #e2e8f0; --muted: #64748b; --radius: 8px;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; padding: 28px 16px; }
+    header { max-width: 620px; margin: 0 auto 28px; display: flex; align-items: center; gap: 12px; }
+    header img { width: 48px; height: 48px; border-radius: 50%; order: 2; margin-left: auto; }
+    header div { display: flex; flex-direction: column; gap: 2px; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p { font-size: 11px; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; max-width: 620px; margin: 0 auto 16px; }
+    .card-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 14px; }
+
+    /* Status */
+    .status-row { display: flex; align-items: center; gap: 12px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .dot-gray { background: #475569; }
+    .status-label { font-size: 15px; font-weight: 600; }
+    .status-reason { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .reason-banner { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; }
+    .reason-red { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
+    .reason-yellow { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25); color: #fcd34d; }
+
+    /* Grid stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+    .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .stat-value { font-size: 20px; font-weight: 700; }
+    .green { color: var(--green); } .red { color: var(--red); } .yellow { color: var(--yellow); }
+
+    /* Settings */
+    .form-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .form-row:last-child { border-bottom: none; }
+    .form-label { font-size: 13px; }
+    .form-label small { display: block; font-size: 10px; color: var(--muted); margin-top: 1px; }
+    input[type="number"], input[type="text"], select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 5px 10px; font-size: 13px; width: 110px; }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+    .btn { padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { opacity: .85; }
+    .btn-danger { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+    .save-row { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; opacity: 0; transition: opacity .3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast-ok { background: rgba(34,197,94,.15); border: 1px solid var(--green); color: var(--green); }
+    .toast-err { background: rgba(239,68,68,.15); border: 1px solid var(--red); color: var(--red); }
+
+    /* Journal table */
+    .table-wrap { overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .badge { display: inline-flex; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+    .badge-buy { background: rgba(34,197,94,.15); color: var(--green); }
+    .badge-sell { background: rgba(239,68,68,.15); color: var(--red); }
+    .badge-win { background: rgba(34,197,94,.15); color: var(--green); }
+    .badge-loss { background: rgba(239,68,68,.15); color: var(--red); }
+    .badge-be { background: rgba(245,158,11,.15); color: var(--yellow); }
+    .badge-open { background: rgba(100,116,139,.15); color: var(--muted); }
+    .empty { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; }
+    a.ext { color: var(--accent); text-decoration: none; font-size: 12px; }
+    a.ext:hover { text-decoration: underline; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>BTC Bot</h1>
+    <p>BTCUSDT · Bybit Perpetual</p>
+  </div>
+  <img src="DVShark.svg" alt="DVShark" />
+</header>
+
+<!-- Status -->
+<div class="card" id="card-status">
+  <div class="card-title">Estado del bot</div>
+  <div class="status-row">
+    <div class="dot dot-gray" id="status-dot"></div>
+    <span class="status-label" id="status-label">Cargando...</span>
+  </div>
+  <div id="status-reason"></div>
+</div>
+
+<!-- Stats -->
+<div class="card">
+  <div class="section-header">
+    <span class="card-title" style="margin-bottom:0">Journal — stats</span>
+    <a class="ext" href="https://bot-reports.vercel.app" target="_blank">Ver en bot-reports ↗</a>
+  </div>
+  <div class="stats-grid">
+    <div class="stat"><div class="stat-label">Trades cerrados</div><div class="stat-value" id="s-total">—</div></div>
+    <div class="stat"><div class="stat-label">Net P&amp;L</div><div class="stat-value" id="s-pnl">—</div></div>
+    <div class="stat"><div class="stat-label">Win rate</div><div class="stat-value" id="s-wr">—</div></div>
+    <div class="stat"><div class="stat-label">Avg R:R</div><div class="stat-value" id="s-rr">—</div></div>
+    <div class="stat"><div class="stat-label">Profit factor</div><div class="stat-value" id="s-pf">—</div></div>
+    <div class="stat"><div class="stat-label">Racha pérdidas</div><div class="stat-value" id="s-streak">—</div></div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+  <div class="card-title">Configuración</div>
+  <form id="settings-form">
+
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border)">TRADING</div>
+    <div class="form-row"><label class="form-label">Símbolo</label><input type="text" id="cfg-SYMBOL" /></div>
+    <div class="form-row"><label class="form-label">Riesgo (%)<small>% del balance por trade</small></label><input type="number" id="cfg-RISK_PERCENT" step="0.1" min="0.1" max="10" /></div>
+    <div class="form-row"><label class="form-label">Apalancamiento<small>Leverage en Bybit</small></label><input type="number" id="cfg-LEVERAGE" min="1" max="100" /></div>
+    <div class="form-row"><label class="form-label">Qty máx (BTC)<small>Límite de posición</small></label><input type="number" id="cfg-MAX_QTY" step="0.001" min="0.001" /></div>
+    <div class="form-row"><label class="form-label">Cooldown (min)<small>Mínimo entre señales</small></label><input type="number" id="cfg-SIGNAL_COOLDOWN_MINUTES" min="1" /></div>
+    <div class="form-row"><label class="form-label">Live trading</label><input type="checkbox" id="cfg-LIVE_TRADING" /></div>
+
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--border)">RIESGO</div>
+    <div class="form-row"><label class="form-label">Máx trades/día<small>0 = sin límite</small></label><input type="number" id="cfg-MAX_DAILY_TRADES" min="0" /></div>
+    <div class="form-row"><label class="form-label">Máx pérdidas/día<small>0 = desactivado</small></label><input type="number" id="cfg-MAX_DAILY_LOSSES" min="0" /></div>
+    <div class="form-row"><label class="form-label">Circuit breaker<small>Pérdidas consecutivas</small></label><input type="number" id="cfg-MAX_CONSEC_LOSSES" min="0" /></div>
+    <div class="form-row"><label class="form-label">Días malos consec.<small>Pausa hasta lunes</small></label><input type="number" id="cfg-MAX_CONSEC_LOSS_DAYS" min="0" /></div>
+
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--border)">SEÑAL EP</div>
+    <div class="form-row"><label class="form-label">Spread EMA mín (pts)<small>EMA8/34 en H1</small></label><input type="number" id="cfg-EMA_SPREAD_MIN" min="0" /></div>
+    <div class="form-row"><label class="form-label">Proximidad zona (pts)<small>Distancia al EMA34 M15</small></label><input type="number" id="cfg-ZONE_PROXIMITY_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">Buffer SL (pts)</label><input type="number" id="cfg-ZONE_SL_BUFFER_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">SL mínimo (pts)</label><input type="number" id="cfg-MIN_SL_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">FVG mínimo (pts)</label><input type="number" id="cfg-MIN_FVG_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">Hora mín ET<small>0 = desactivado</small></label><input type="number" id="cfg-EP_MIN_HOUR" min="0" max="23" /></div>
+    <div class="form-row"><label class="form-label">Hora máx ET<small>0 = desactivado</small></label><input type="number" id="cfg-EP_MAX_HOUR" min="0" max="23" /></div>
+    <div class="form-row"><label class="form-label">Alineación H4</label><input type="checkbox" id="cfg-EP_H4_ALIGN" /></div>
+    <div class="form-row"><label class="form-label">Alineación M15</label><input type="checkbox" id="cfg-EP_M15_ALIGN" /></div>
+    <div class="form-row"><label class="form-label">Skip lunes</label><input type="checkbox" id="cfg-EP_SKIP_MONDAY" /></div>
+
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--border)">GESTIÓN DE POSICIÓN</div>
+    <div class="form-row"><label class="form-label">Trailing RR<small>0 = desactivado</small></label><input type="number" id="cfg-TRAIL_RR" step="0.1" min="0" /></div>
+    <div class="form-row"><label class="form-label">Break-even (pts)<small>0 = desactivado</small></label><input type="number" id="cfg-BE_AT_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">Buffer BE (pts)</label><input type="number" id="cfg-BE_BUFFER_POINTS" min="0" /></div>
+    <div class="form-row"><label class="form-label">Partial TP</label><input type="checkbox" id="cfg-PARTIAL_TP_ENABLED" /></div>
+
+    <div style="font-size:11px;color:var(--muted);margin:14px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--border)">OTROS</div>
+    <div class="form-row"><label class="form-label">Modo semi-auto</label><input type="checkbox" id="cfg-SEMI_AUTO_MODE" /></div>
+    <div class="form-row"><label class="form-label">Telegram activo</label><input type="checkbox" id="cfg-TELEGRAM_ENABLED" /></div>
+
+    <div class="save-row">
+      <button type="submit" class="btn btn-primary">Guardar configuración</button>
+    </div>
+  </form>
+</div>
+
+<!-- Trades table -->
+<div class="card">
+  <div class="section-header">
+    <span class="card-title" style="margin-bottom:0">Últimas operaciones</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Apertura (ET)</th>
+          <th>Dir</th>
+          <th>Qty (BTC)</th>
+          <th>Entry</th>
+          <th>SL</th>
+          <th>TP</th>
+          <th>R:R plan</th>
+          <th>R:R real</th>
+          <th>P&amp;L</th>
+          <th>Resultado</th>
+        </tr>
+      </thead>
+      <tbody id="trades-body"></tbody>
+    </table>
+    <div id="trades-empty" class="empty" style="display:none">Sin operaciones registradas</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $  = id => document.getElementById(id);
+const fmt = n => n === null || n === undefined ? '—' : Number(n).toFixed(2);
+
+// ── Status ───────────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const d = await fetch('/api/status').then(r => r.json());
+    const dot = $('status-dot'), lbl = $('status-label'), rsn = $('status-reason');
+    dot.className = 'dot ' + (
+      !d.available          ? 'dot-gray'   :
+      d.ready               ? 'dot-green'  :
+      d.reason?.includes('cerrad') ? 'dot-yellow' : 'dot-red'
+    );
+    lbl.textContent = !d.available ? 'Bot no disponible' : d.ready ? 'Listo para operar' : 'En espera';
+    if (d.reason && !d.ready && d.available) {
+      rsn.innerHTML = `<div class="reason-banner ${d.reason.includes('cerrad') ? 'reason-yellow' : 'reason-red'}">${d.reason}</div>`;
+    } else { rsn.innerHTML = ''; }
+  } catch { $('status-label').textContent = 'Sin conexión'; }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const { data: d } = await fetch('/api/journal/stats').then(r => r.json());
+    if (!d) return;
+    $('s-total').textContent = d.total_closed;
+    const pnl = $('s-pnl'); pnl.textContent = (d.total_pnl >= 0 ? '+' : '') + '$' + fmt(d.total_pnl);
+    pnl.className = 'stat-value ' + (d.total_pnl >= 0 ? 'green' : 'red');
+    $('s-wr').textContent = d.win_rate + '%';
+    $('s-rr').textContent = d.avg_rr !== null ? fmt(d.avg_rr) : '—';
+    $('s-pf').textContent = d.profit_factor !== null ? fmt(d.profit_factor) : '∞';
+    $('s-streak').textContent = `${d.current_loss_streak} / ${d.max_loss_streak}`;
+  } catch {}
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+let cfg = {};
+async function loadSettings() {
+  cfg = await fetch('/api/settings').then(r => r.json());
+  const set = (id, val) => { const el = $(id); if (!el) return; if (el.type === 'checkbox') el.checked = !!val; else el.value = val ?? ''; };
+  for (const [k, v] of Object.entries(cfg)) set('cfg-' + k, v);
+}
+
+$('settings-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const updated = { ...cfg };
+  document.querySelectorAll('[id^="cfg-"]').forEach(el => {
+    const key = el.id.replace('cfg-', '');
+    if (el.type === 'checkbox') updated[key] = el.checked;
+    else if (el.type === 'number') updated[key] = parseFloat(el.value);
+    else updated[key] = el.value;
+  });
+  const ok = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }).then(r => r.ok);
+  showToast(ok ? 'Configuración guardada' : 'Error al guardar', ok);
+  if (ok) cfg = updated;
+});
+
+// ── Trades ───────────────────────────────────────────────────────────────────
+function etDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('sv-SE', { timeZone: 'America/New_York' }).replace('T', ' ').slice(0, 16);
+}
+async function refreshTrades() {
+  try {
+    const { data } = await fetch('/api/journal/trades?limit=20').then(r => r.json());
+    const tbody = $('trades-body');
+    if (!data?.length) { tbody.innerHTML = ''; $('trades-empty').style.display = ''; return; }
+    $('trades-empty').style.display = 'none';
+    tbody.innerHTML = data.map(t => {
+      const res  = t.result ?? 'OPEN';
+      const pnl  = t.profit !== null ? ((t.profit >= 0 ? '+' : '') + '$' + fmt(t.profit)) : '—';
+      const pnlC = t.profit > 0 ? 'green' : t.profit < 0 ? 'red' : '';
+      return `<tr>
+        <td>${etDate(t.opened_at)}</td>
+        <td><span class="badge badge-${t.side?.toLowerCase()}">${t.side}</span></td>
+        <td>${fmt(t.qty)}</td>
+        <td>${Number(t.entry_price).toFixed(2)}</td>
+        <td>${Number(t.stop_loss).toFixed(2)}</td>
+        <td>${Number(t.take_profit).toFixed(2)}</td>
+        <td>${fmt(t.planned_rr)}</td>
+        <td>${t.actual_rr !== null ? fmt(t.actual_rr) : '—'}</td>
+        <td class="${pnlC}">${pnl}</td>
+        <td><span class="badge badge-${res.toLowerCase()}">${res}</span></td>
+      </tr>`;
+    }).join('');
+  } catch {}
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function showToast(msg, ok = true) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (ok ? 'toast-ok' : 'toast-err');
+  setTimeout(() => { t.className = 'toast'; }, 3000);
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+loadSettings();
+refreshStatus();
+refreshStats();
+refreshTrades();
+setInterval(refreshStatus, 10_000);
+setInterval(refreshStats, 30_000);
+setInterval(refreshTrades, 30_000);
+</script>
+</body>
+</html>

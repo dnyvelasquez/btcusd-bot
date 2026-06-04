@@ -1,5 +1,8 @@
 import { logger } from '@infra/logger/logger';
 import { Application } from './app/application';
+import { startDashboard } from '../apps/dashboard/server';
+
+startDashboard(8002);
 
 const app = new Application();
 
