@@ -13,24 +13,33 @@ interface PendingApproval {
 }
 
 export class TelegramService {
-  private readonly bot: TelegramBot;
+  private bot: TelegramBot | null = null;
   private pendingApproval: PendingApproval | null = null;
-
-  constructor() {
-    this.bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: false });
-  }
+  private enabled = false;
 
   public async initialize(): Promise<void> {
-    const botInfo = await this.bot.getMe();
-    logger.info(`Telegram connected: @${botInfo.username}`);
-    if (!env.TELEGRAM_CHAT_ID) logger.warn('TELEGRAM_CHAT_ID not set — notifications disabled');
-    this.bot.on('callback_query', (q) => this.handleCallbackQuery(q));
-    if (configService.semiAutoMode) { await this.bot.startPolling(); logger.info('Telegram polling started'); }
+    const token = env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      logger.warn('TELEGRAM_BOT_TOKEN not set — Telegram disabled');
+      return;
+    }
+    try {
+      this.bot = new TelegramBot(token, { polling: false });
+      const botInfo = await this.bot.getMe();
+      this.enabled = true;
+      logger.info(`Telegram connected: @${botInfo.username}`);
+      if (!env.TELEGRAM_CHAT_ID) logger.warn('TELEGRAM_CHAT_ID not set — notifications disabled');
+      this.bot.on('callback_query', (q) => this.handleCallbackQuery(q));
+      if (configService.semiAutoMode) { await this.bot.startPolling(); logger.info('Telegram polling started'); }
+    } catch (err) {
+      logger.warn({ err }, 'Telegram init failed — notifications disabled');
+      this.bot = null;
+    }
   }
 
   private handleCallbackQuery(query: TelegramBot.CallbackQuery): void {
-    if (!this.pendingApproval || query.message?.message_id !== this.pendingApproval.messageId) {
-      this.bot.answerCallbackQuery(query.id, { text: 'Sin trade pendiente' }).catch(() => {});
+    if (!this.bot || !this.pendingApproval || query.message?.message_id !== this.pendingApproval.messageId) {
+      this.bot?.answerCallbackQuery(query.id, { text: 'Sin trade pendiente' }).catch(() => {});
       return;
     }
     const approved = query.data === 'execute';
@@ -48,7 +57,7 @@ export class TelegramService {
   async sendTradeApproval(params: {
     side: string; symbol: string; entry: number; sl: number; tp: number; volume: number; rr: string; riskAmount: string;
   }, timeoutMs = 180_000): Promise<boolean> {
-    if (!env.TELEGRAM_CHAT_ID) return false;
+    if (!this.enabled || !this.bot || !env.TELEGRAM_CHAT_ID) return false;
     const { side, symbol, entry, sl, tp, volume, rr, riskAmount } = params;
     const baseText =
       `📋 <b>Setup — ${side} ${symbol}</b>\n<i>Responde en 3 minutos…</i>\n\n` +
@@ -60,7 +69,7 @@ export class TelegramService {
     });
     return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
-        this.bot.editMessageText(baseText + '\n\n⏱ <i>Sin respuesta — cancelado</i>',
+        this.bot?.editMessageText(baseText + '\n\n⏱ <i>Sin respuesta — cancelado</i>',
           { chat_id: env.TELEGRAM_CHAT_ID!, message_id: msg.message_id, parse_mode: 'HTML' }).catch(() => {});
         this.pendingApproval = null;
         resolve(false);
@@ -69,10 +78,10 @@ export class TelegramService {
     });
   }
 
-  public async stop(): Promise<void> { await this.bot.stopPolling().catch(() => {}); }
+  public async stop(): Promise<void> { await this.bot?.stopPolling().catch(() => {}); }
 
   private async send(html: string): Promise<void> {
-    if (!env.TELEGRAM_CHAT_ID || !configService.telegramEnabled) return;
+    if (!this.enabled || !this.bot || !env.TELEGRAM_CHAT_ID || !configService.telegramEnabled) return;
     try { await this.bot.sendMessage(env.TELEGRAM_CHAT_ID, html, { parse_mode: 'HTML' }); }
     catch (err) { logger.warn(err, 'Telegram send failed'); }
   }

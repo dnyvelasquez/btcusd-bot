@@ -11,7 +11,7 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
 
-  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
 
   DATABASE_URL: z.string().url().optional(),
