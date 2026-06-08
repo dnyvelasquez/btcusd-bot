@@ -1,7 +1,9 @@
 export type TradeResult = 'WIN' | 'LOSS' | 'BE' | 'OPEN';
+export type SignalType = 'EMA_PB';
 
 export interface BacktestTrade {
   tradeNumber: number;
+  signalType: SignalType;
   direction: 'BULLISH' | 'BEARISH';
   side: 'BUY' | 'SELL';
   openTime: number;

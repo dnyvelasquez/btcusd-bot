@@ -1,10 +1,10 @@
 {
   "SYMBOL": "BTCUSDT",
-  "RISK_PERCENT": 1.0,
-  "LIVE_TRADING": false,
-  "SIGNAL_COOLDOWN_MINUTES": 60,
+  "RISK_PERCENT": 1,
+  "LIVE_TRADING": true,
+  "SIGNAL_COOLDOWN_MINUTES": 90,
   "LEVERAGE": 5,
-  "MAX_QTY": 1.0,
+  "MAX_QTY": 1,
   "MAX_DAILY_TRADES": 0,
   "MAX_CONSEC_LOSSES": 0,
   "MAX_CONSEC_LOSS_DAYS": 0,
@@ -12,26 +12,34 @@
   "TELEGRAM_ENABLED": false,
   "LICENSE_KEY": "bf927cd0-ad2f-46ad-8a0d-5bb1a25cdd26",
   "BLOCKED_HOURS": [
-    { "from": "00:00", "to": "08:00", "label": "Off-hours (low volume)" },
-    { "from": "17:00", "to": "00:00", "label": "Off-hours (low volume)" }
+    {
+      "from": "00:00",
+      "to": "08:00",
+      "label": "Off-hours (low volume)"
+    },
+    {
+      "from": "17:00",
+      "to": "00:00",
+      "label": "Off-hours (low volume)"
+    }
   ],
-  "MIN_SL_POINTS": 200,
-  "MIN_FVG_POINTS": 50,
-  "ZONE_PROXIMITY_POINTS": 500,
-  "ZONE_SL_BUFFER_POINTS": 150,
-  "EMA_SPREAD_MIN": 200,
+  "MIN_SL_POINTS": 300,
+  "MIN_FVG_POINTS": 150,
+  "ZONE_PROXIMITY_POINTS": 300,
+  "ZONE_SL_BUFFER_POINTS": 600,
+  "EMA_SPREAD_MIN": 750,
   "EP_M15_ALIGN": false,
   "EP_SKIP_MONDAY": false,
   "EP_MIN_HOUR": 8,
   "EP_MAX_HOUR": 17,
   "EP_H4_ALIGN": true,
   "EP_ADX_PERIOD": 14,
-  "EP_ADX_MIN": 0,
+  "EP_ADX_MIN": 20,
   "EP_ADX_MAX": 0,
-  "CI_MAX": 61.8,
-  "TRAIL_RR": 1.5,
+  "CI_MAX": 55,
+  "TRAIL_RR": 2,
   "BE_AT_POINTS": 0,
-  "BE_BUFFER_POINTS": 50,
+  "BE_BUFFER_POINTS": 200,
   "PARTIAL_TP_ENABLED": false,
   "SEMI_AUTO_MODE": false
 }

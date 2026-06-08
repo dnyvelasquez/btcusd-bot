@@ -4,7 +4,7 @@ import { EMAEngine } from '@bot-core/strategy/indicators/ema-engine';
 import { MACDEngine } from '@bot-core/strategy/indicators/macd-engine';
 import { ADXEngine } from '@bot-core/strategy/indicators/adx-engine';
 import type { Candle } from '@bybit/bybit.types';
-import type { BacktestTrade, BacktestReport, BacktestMetrics, TradeResult, BacktestParams, BlockedWindow } from './backtest.types';
+import type { BacktestTrade, BacktestReport, BacktestMetrics, TradeResult, SignalType, BacktestParams, BlockedWindow } from './backtest.types';
 
 const WARM_UP_DAYS = 7;
 const MIN_QTY = 0.001;
@@ -192,84 +192,82 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestRepor
 
     if (h1.length < 40 || m15.length < 40) continue;
 
-    // ── EMA Pullback signal ───────────────────────────────────────────────────
-    const h1Ema8  = ema.last(h1, 8);
-    const h1Ema34 = ema.last(h1, 34);
-    if (h1Ema8 === null || h1Ema34 === null) continue;
+    const tpRr = params.tpRr ?? 2;
 
-    const direction: 'BULLISH' | 'BEARISH' = h1Ema8 > h1Ema34 ? 'BULLISH' : 'BEARISH';
+    // ── Signal evaluation ─────────────────────────────────────────────────────
+    type SigResult = { direction: 'BULLISH' | 'BEARISH'; entry: number; sl: number; tp: number; signalType: SignalType };
 
-    if (params.emaSpreadMin > 0 && Math.abs(h1Ema8 - h1Ema34) < params.emaSpreadMin) continue;
+    const evalEP = (): SigResult | null => {
+      const h1Ema8  = ema.last(h1, 8);
+      const h1Ema34 = ema.last(h1, 34);
+      if (h1Ema8 === null || h1Ema34 === null) return null;
 
-    if (params.epH4Align && h4.length >= 40) {
-      const h4e8  = ema.last(h4, 8);
-      const h4e34 = ema.last(h4, 34);
-      if (h4e8 === null || h4e34 === null) continue;
-      if (direction === 'BULLISH' && h4e8 < h4e34) continue;
-      if (direction === 'BEARISH' && h4e8 > h4e34) continue;
-    }
+      const dir: 'BULLISH' | 'BEARISH' = h1Ema8 > h1Ema34 ? 'BULLISH' : 'BEARISH';
+      if (params.emaSpreadMin > 0 && Math.abs(h1Ema8 - h1Ema34) < params.emaSpreadMin) return null;
 
-    if (params.epAdxMin > 0 && h4.length >= 30) {
-      const adxVal = adx.last(h4, params.epAdxPeriod);
-      if (adxVal === null || adxVal < params.epAdxMin) continue;
-    }
-    if (params.epAdxMax > 0 && h4.length >= 30) {
-      const adxVal = adx.last(h4, params.epAdxPeriod);
-      if (adxVal !== null && adxVal > params.epAdxMax) continue;
-    }
+      if (params.epH4Align && h4.length >= 40) {
+        const h4e8  = ema.last(h4, 8);
+        const h4e34 = ema.last(h4, 34);
+        if (h4e8 === null || h4e34 === null) return null;
+        if (dir === 'BULLISH' && h4e8 < h4e34) return null;
+        if (dir === 'BEARISH' && h4e8 > h4e34) return null;
+      }
+      if (params.epAdxMin > 0 && h4.length >= 30) {
+        const adxVal = adx.last(h4, params.epAdxPeriod);
+        if (adxVal === null || adxVal < params.epAdxMin) return null;
+      }
+      if (params.epAdxMax > 0 && h4.length >= 30) {
+        const adxVal = adx.last(h4, params.epAdxPeriod);
+        if (adxVal !== null && adxVal > params.epAdxMax) return null;
+      }
 
-    const m15Ema34 = ema.last(m15, 34);
-    if (m15Ema34 === null) continue;
+      const m15Ema34 = ema.last(m15, 34);
+      if (m15Ema34 === null) return null;
+      if (params.epM15Align) {
+        const m15e8 = ema.last(m15, 8);
+        if (m15e8 === null) return null;
+        if (dir === 'BULLISH' && m15e8 < m15Ema34) return null;
+        if (dir === 'BEARISH' && m15e8 > m15Ema34) return null;
+      }
 
-    if (params.epM15Align) {
-      const m15e8 = ema.last(m15, 8);
-      if (m15e8 === null) continue;
-      if (direction === 'BULLISH' && m15e8 < m15Ema34) continue;
-      if (direction === 'BEARISH' && m15e8 > m15Ema34) continue;
-    }
+      const price = bar.close;
+      if (Math.abs(price - m15Ema34) > params.zoneProximityPoints) return null;
 
-    const currentPrice = bar.close;
-    if (Math.abs(currentPrice - m15Ema34) > params.zoneProximityPoints) continue;
+      const macdResult = macd.analyze(m15);
+      if (!macdResult) return null;
+      if (dir === 'BULLISH' && macdResult.histogram <= 0) return null;
+      if (dir === 'BEARISH' && macdResult.histogram >= 0) return null;
 
-    const macdResult = macd.analyze(m15);
-    if (!macdResult) continue;
-    if (direction === 'BULLISH' && macdResult.histogram <= 0) continue;
-    if (direction === 'BEARISH' && macdResult.histogram >= 0) continue;
+      const sl    = dir === 'BULLISH' ? m15Ema34 - params.zoneSlBufferPoints : m15Ema34 + params.zoneSlBufferPoints;
+      const slDist = Math.abs(price - sl);
+      if (params.minSlPoints > 0 && slDist < params.minSlPoints) return null;
+
+      return { direction: dir, entry: price, sl, tp: dir === 'BULLISH' ? price + slDist * tpRr : price - slDist * tpRr, signalType: 'EMA_PB' };
+    };
+
+    const sig = evalEP();
+    if (!sig) continue;
 
     // Cooldown
     const cooldownSecs = params.cooldownMinutes * 60;
-    if (ts - (lastSignalTime.get(direction) ?? 0) < cooldownSecs) continue;
+    if (ts - (lastSignalTime.get(sig.direction) ?? 0) < cooldownSecs) continue;
 
-    // Levels
-    const entryPrice = currentPrice;
-    const stopLoss   = direction === 'BULLISH'
-      ? m15Ema34 - params.zoneSlBufferPoints
-      : m15Ema34 + params.zoneSlBufferPoints;
-    const slDist = Math.abs(entryPrice - stopLoss);
-
-    if (params.minSlPoints > 0 && slDist < params.minSlPoints) continue;
-
-    const tpRr      = params.tpRr ?? 2;
-    const takeProfit = direction === 'BULLISH'
-      ? entryPrice + slDist * tpRr
-      : entryPrice - slDist * tpRr;
-
-    const qty = calcQty(balance, params.riskPercent, slDist, params.maxQty);
-
-    lastSignalTime.set(direction, ts);
+    const qty = calcQty(balance, params.riskPercent, Math.abs(sig.entry - sig.sl), params.maxQty);
+    lastSignalTime.set(sig.direction, ts);
     tradeNum++;
 
     openTrade = {
       tradeNumber:  tradeNum,
-      direction,
-      side:         direction === 'BULLISH' ? 'BUY' : 'SELL',
+      signalType:   sig.signalType,
+      direction:    sig.direction,
+      side:         sig.direction === 'BULLISH' ? 'BUY' : 'SELL',
       openTime:     ts,
       closeTime:    null,
       openTimeISO:  isoET(ts),
       closeTimeISO: null,
-      entry:        entryPrice,
-      sl:           stopLoss,
-      tp:           takeProfit,
+      entry:        sig.entry,
+      sl:           sig.sl,
+      tp:           sig.tp,
       qty,
       plannedRr:    tpRr,
       actualRr:     null,

@@ -9,10 +9,14 @@ function parseArgs(argv: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i]?.startsWith('--') && argv[i + 1] && !argv[i + 1]!.startsWith('--')) {
-      out[argv[i]!.slice(2)] = argv[i + 1]!; i++;
-    } else if (argv[i] && !argv[i]!.startsWith('--')) {
-      positional.push(argv[i]!);
+    const arg = argv[i]!;
+    if (arg.startsWith('--') && argv[i + 1] && !argv[i + 1]!.startsWith('--')) {
+      out[arg.slice(2)] = argv[i + 1]!; i++;
+    } else if (arg.includes('=') && !arg.startsWith('--')) {
+      const eqIdx = arg.indexOf('=');
+      out[arg.slice(0, eqIdx)] = arg.slice(eqIdx + 1);
+    } else if (!arg.startsWith('--')) {
+      positional.push(arg);
     }
   }
   if (!out['start'] && positional[0]) out['start'] = positional[0]!;
@@ -33,9 +37,11 @@ function tradeRow(t: BacktestTrade): string {
   const icon = t.result === 'WIN' ? '✓' : t.result === 'LOSS' ? '✗' : t.result === 'BE' ? '○' : '…';
   const pnl = (t.pnl >= 0 ? '+' : '') + '$' + t.pnl.toFixed(2);
   const rr = t.actualRr !== null ? t.actualRr.toFixed(2) : 'n/a';
+  const tag = '[EP]';
   return [
     pad(t.tradeNumber, 3, true),
     pad(t.openTimeISO, 17),
+    pad(tag, 5),
     pad(t.side, 5),
     pad(t.entry.toFixed(2), 10, true),
     pad(t.sl.toFixed(2), 10, true),
@@ -61,7 +67,7 @@ function printReport(r: BacktestReport): void {
   } else {
     console.log();
     console.log([
-      pad('#', 3, true), pad('Apertura (ET)', 17), pad('Dir', 5),
+      pad('#', 3, true), pad('Apertura (ET)', 17), pad('Tipo', 5), pad('Dir', 5),
       pad('Entry', 10, true), pad('SL', 10, true), pad('TP', 10, true),
       pad('Qty', 7, true), pad('R:R', 6, true), pad('Resultado', 8),
       pad('P&L ($)', 12, true),
@@ -71,9 +77,20 @@ function printReport(r: BacktestReport): void {
     console.log();
   }
 
+  const ep = r.trades.filter(t => t.signalType === 'EMA_PB');
+  const statLine = (label: string, ts: BacktestTrade[]) => {
+    const w = ts.filter(t => t.result === 'WIN').length;
+    const l = ts.filter(t => t.result === 'LOSS').length;
+    const pnl = ts.reduce((s, t) => s + t.pnl, 0);
+    const wr = ts.length > 0 ? ((w / (w + l)) * 100).toFixed(1) : '-';
+    return ` ${label}  trades=${ts.length}  W/L=${w}/${l}  WR=${wr}%  P&L=${(pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2)}`;
+  };
+
   console.log(SEP);
   console.log(' RESULTADOS');
   console.log(SEP);
+  console.log(statLine('[EP] EMA Pullback:  ', ep));
+  console.log(sep);
   console.log(` Total trades:          ${m.totalTrades}`);
   console.log(` Wins / Losses / BE:    ${m.wins} / ${m.losses} / ${m.breakevens}`);
   console.log(` Win rate:              ${m.winRate.toFixed(1)}%`);

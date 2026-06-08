@@ -71,12 +71,21 @@ export function startDashboard(port = 8002): void {
   });
 
   // ── Settings ─────────────────────────────────────────────────────────────
+  // Only operational keys are editable from the dashboard. Strategy/risk params
+  // validated in backtests stay in config.json and are preserved on save.
+  const EDITABLE_KEYS = ['RISK_PERCENT', 'LIVE_TRADING', 'TELEGRAM_ENABLED', 'LICENSE_KEY'];
+
   app.get('/api/settings', (_req, res) => res.json(readConfig()));
 
   app.put('/api/settings', (req, res) => {
     try {
-      fs.writeFileSync(CONFIG_PATH, JSON.stringify(req.body, null, 2), 'utf-8');
-      res.json(req.body);
+      const existing = readConfig();
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      for (const k of EDITABLE_KEYS) {
+        if (k in body) existing[k] = body[k];
+      }
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(existing, null, 2), 'utf-8');
+      res.json(existing);
     } catch (err) { res.status(500).json({ error: String(err) }); }
   });
 
