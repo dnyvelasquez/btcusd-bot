@@ -88,7 +88,7 @@ Mínimo: 0.001 BTC. Máximo: `MAX_QTY` (configurable).
 | **Daily loss limit** | Si el número de pérdidas del día alcanza `MAX_DAILY_LOSSES`, pausa hasta el día siguiente. |
 | **Daily trade limit** | Si el número de trades del día alcanza `MAX_DAILY_TRADES`, pausa hasta el día siguiente. `0` = sin límite. |
 | **Consecutive loss circuit** | Si se cierran `MAX_CONSEC_LOSSES` pérdidas seguidas, bloquea el resto del día. `0` = desactivado. |
-| **Signal cooldown** | Mínimo `SIGNAL_COOLDOWN_MINUTES` (60 min) entre señales. |
+| **Signal cooldown** | Mínimo `SIGNAL_COOLDOWN_MINUTES` (90 min) entre señales. |
 
 ### Ventana de operación por defecto (hora ET)
 
@@ -196,13 +196,15 @@ npm run backtest -- --start 2024-01-01 --end 2024-12-31
 
 Todos los parámetros de `config.json` se leen automáticamente y se pueden sobrescribir con flags CLI.
 
-### Resultado de referencia (mainnet, config actual)
+### Resultado de referencia (backtest, config actual)
 
-| Período | Trades | WR | PF | P&L | MaxDD |
-|---|---|---|---|---|---|
-| Ene 2024 – Jun 2026 | 878 | 11.6% | 2.99 | +$25,402 | 22.96% |
+| Período | Trades | WR | PF | P&L | Max DD | Max racha |
+|---|---|---|---|---|---|---|
+| 2024 (año completo) | 64 | 42.2% | 1.58 | +$2,074 | 6.79% | 7 |
+| 2025 (año completo) | 70 | 47.1% | 1.74 | +$3,257 | 6.84% | 5 |
+| 2026 (ene – jun) | 23 | 34.8% | 1.05 | +$77 | 6.79% | 7 |
 
-> ⚠️ Win rate bajo e indicadores de sobreoperación — parámetros pendientes de tuning para BTC.
+Balance inicial simulado: $10,000 — riesgo 1% por trade — apalancamiento 5x.
 
 ## Trade Journal
 
@@ -242,6 +244,6 @@ Dashboard embebido en el bot en `http://localhost:8002`:
 - **Estado Bybit API** — conexión en tiempo real (verde / rojo)
 - **Estado del bot** — semáforo con razón de bloqueo
 - **Licencia** — info del titular y modo permitido
-- **Configuración** — todos los parámetros de `config.json` con hot-reload
+- **Configuración** — solo parámetros operativos editables (riesgo por operación, modo live); la estrategia validada en backtests no es editable desde el panel y se ajusta en `config.json`. Hot-reload sin reiniciar
 - **Telegram** — configurar token, chat ID, prueba de envío
 - **Journal** — estadísticas (win rate, profit factor, avg R:R, P&L) + tabla de últimas 20 operaciones
