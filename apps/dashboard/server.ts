@@ -3,6 +3,7 @@ import path from 'path';
 
 import express from 'express';
 import postgres from 'postgres';
+import { RestClientV5 } from 'bybit-api';
 
 import { logger } from '../../src/infrastructure/logger/logger';
 
@@ -89,11 +90,133 @@ export function startDashboard(port = 8002): void {
     } catch (err) { res.status(500).json({ error: String(err) }); }
   });
 
-  // ── License (read-only from cache) ────────────────────────────────────────
+  // ── License ───────────────────────────────────────────────────────────────
   app.get('/api/license', (_req, res) => {
     if (!fs.existsSync(CACHE_PATH)) return res.status(404).json({ detail: 'License not cached yet — start the bot first' });
     try { res.json(JSON.parse(fs.readFileSync(CACHE_PATH, 'utf-8'))); }
     catch (err) { res.status(500).json({ detail: String(err) }); }
+  });
+
+  const LICENSE_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  app.post('/api/license/validate', async (req, res) => {
+    const { license_key } = (req.body ?? {}) as { license_key?: string };
+    if (!license_key || !LICENSE_KEY_RE.test(license_key)) {
+      return res.json({ valid: false, reason: 'Formato de clave inválido' });
+    }
+
+    const dbUrl = process.env['DATABASE_URL'];
+    if (!dbUrl) return res.status(503).json({ valid: false, reason: 'DATABASE_URL no configurado' });
+
+    const env = readEnv();
+    const apiKey = env['BYBIT_API_KEY'], apiSecret = env['BYBIT_API_SECRET'];
+    const testnet = env['BYBIT_TESTNET'] !== 'false';
+    if (!apiKey || !apiSecret) return res.json({ valid: false, reason: 'Credenciales de Bybit no configuradas' });
+
+    let uid: number;
+    try {
+      const client = new RestClientV5({ key: apiKey, secret: apiSecret, testnet });
+      const r = await client.getQueryApiKey();
+      if (r.retCode !== 0) return res.json({ valid: false, reason: `No se pudo conectar a Bybit: ${r.retMsg}` });
+      uid = r.result.userID;
+    } catch (err) {
+      const detail = (err as { message?: string } | null)?.message ?? String(err);
+      return res.json({ valid: false, reason: `No se pudo conectar a Bybit: ${detail}` });
+    }
+    const tradeMode: 'DEMO' | 'REAL' = testnet ? 'DEMO' : 'REAL';
+
+    const sql = postgres(dbUrl, { ssl: 'require', max: 1, connect_timeout: 5 });
+    try {
+      const rows = await sql<{ owner_name: string; mt5_account: number; allowed_mode: 'demo' | 'live' | 'both'; active: boolean; expires_at: string | null }[]>`
+        SELECT owner_name, mt5_account, allowed_mode, active, expires_at
+        FROM licenses WHERE license_key = ${license_key}::uuid LIMIT 1
+      `;
+      if (!rows.length) return res.json({ valid: false, reason: 'Clave de licencia no encontrada' });
+
+      const license = rows[0];
+      if (!license.active) return res.json({ valid: false, reason: 'La licencia está inactiva' });
+      if (license.expires_at && new Date(license.expires_at) < new Date()) {
+        return res.json({ valid: false, reason: `La licencia venció el ${new Date(license.expires_at).toISOString().slice(0, 10)}` });
+      }
+      if (Number(license.mt5_account) !== uid) {
+        return res.json({ valid: false, reason: `Cuenta incorrecta — la licencia es para la cuenta ${license.mt5_account}, conectada: ${uid}` });
+      }
+
+      const isDemo = tradeMode === 'DEMO';
+      const modeOk = license.allowed_mode === 'both'
+        || (license.allowed_mode === 'demo' && isDemo)
+        || (license.allowed_mode === 'live' && !isDemo);
+      if (!modeOk) {
+        return res.json({ valid: false, reason: `La licencia solo permite modo '${license.allowed_mode}', cuenta actual: ${tradeMode}` });
+      }
+
+      const cfg = readConfig();
+      cfg['LICENSE_KEY'] = license_key;
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf-8');
+
+      const expiresStr = license.expires_at ? new Date(license.expires_at).toISOString() : null;
+      fs.writeFileSync(CACHE_PATH, JSON.stringify({
+        owner_name: license.owner_name,
+        mt5_account: uid,
+        trade_mode: tradeMode,
+        allowed_mode: license.allowed_mode,
+        active: license.active,
+        expires_at: expiresStr,
+        validated_at: new Date().toISOString(),
+      }, null, 2), 'utf-8');
+
+      res.json({ valid: true, owner_name: license.owner_name, mt5_account: uid, allowed_mode: license.allowed_mode, expires_at: expiresStr });
+    } catch (err) {
+      res.status(500).json({ valid: false, reason: String(err) });
+    } finally {
+      await sql.end({ timeout: 3 });
+    }
+  });
+
+  // ── Bybit credentials ─────────────────────────────────────────────────────
+  app.get('/api/bybit', async (_req, res) => {
+    const env = readEnv();
+    const api_key = env['BYBIT_API_KEY'] ?? '';
+    const api_secret = env['BYBIT_API_SECRET'] ?? '';
+    const testnet = env['BYBIT_TESTNET'] !== 'false';
+
+    let uid: number | null = null;
+    if (api_key && api_secret) {
+      try {
+        const client = new RestClientV5({ key: api_key, secret: api_secret, testnet });
+        const r = await client.getQueryApiKey();
+        if (r.retCode === 0) uid = r.result.userID;
+      } catch { /* shown as unavailable below */ }
+    }
+
+    res.json({ api_key, api_secret, testnet, uid });
+  });
+
+  app.put('/api/bybit', (req, res) => {
+    const { api_key, api_secret, testnet } = req.body as { api_key: string; api_secret: string; testnet: boolean };
+    if (!api_key || !api_secret) return res.status(400).json({ detail: 'API Key y Secret no pueden estar vacíos' });
+    writeEnvKey('BYBIT_API_KEY', api_key);
+    writeEnvKey('BYBIT_API_SECRET', api_secret);
+    writeEnvKey('BYBIT_TESTNET', testnet ? 'true' : 'false');
+    res.json({ api_key, api_secret, testnet });
+  });
+
+  app.post('/api/bybit/test', async (req, res) => {
+    const body = (req.body ?? {}) as { api_key?: string; api_secret?: string; testnet?: boolean };
+    const env = readEnv();
+    const key      = body.api_key?.trim()    || env['BYBIT_API_KEY'];
+    const secret   = body.api_secret?.trim() || env['BYBIT_API_SECRET'];
+    const testnet  = body.testnet ?? (env['BYBIT_TESTNET'] !== 'false');
+    if (!key || !secret) return res.json({ success: false, detail: 'API Key o Secret no configurados' });
+    try {
+      const client = new RestClientV5({ key, secret, testnet });
+      const r = await client.getWalletBalance({ accountType: 'UNIFIED', coin: 'USDT' });
+      if (r.retCode !== 0) return res.json({ success: false, detail: r.retMsg });
+      res.json({ success: true, detail: `Conexión OK — cuenta ${testnet ? 'demo (testnet)' : 'real'}` });
+    } catch (err) {
+      const detail = (err as { message?: string } | null)?.message ?? String(err);
+      res.json({ success: false, detail });
+    }
   });
 
   // ── Telegram ──────────────────────────────────────────────────────────────
@@ -124,6 +247,8 @@ export function startDashboard(port = 8002): void {
     } catch (err) { res.json({ success: false, detail: String(err) }); }
   });
 
+  const SYMBOL = 'BTCUSDT';
+
   // ── Journal stats ─────────────────────────────────────────────────────────
   app.get('/api/journal/stats', async (_req, res) => {
     const sql = getDb();
@@ -141,10 +266,11 @@ export function startDashboard(port = 8002): void {
           COALESCE(SUM(profit)  FILTER (WHERE profit > 0 AND closed_at IS NOT NULL), 0)          AS gross_profit,
           COALESCE(ABS(SUM(profit) FILTER (WHERE profit < 0 AND closed_at IS NOT NULL)), 0)      AS gross_loss
         FROM trades
+        WHERE symbol = ${SYMBOL}
       `;
       const total = Number(row.total_closed) || 0, wins = Number(row.wins) || 0;
       const gp = Number(row.gross_profit), gl = Number(row.gross_loss);
-      const results = await sql<{ result: string }[]>`SELECT result FROM trades WHERE closed_at IS NOT NULL ORDER BY closed_at ASC`;
+      const results = await sql<{ result: string }[]>`SELECT result FROM trades WHERE closed_at IS NOT NULL AND symbol = ${SYMBOL} ORDER BY closed_at ASC`;
       let maxStreak = 0, curStreak = 0;
       for (const r of results) {
         if (r.result === 'LOSS') { curStreak++; maxStreak = Math.max(maxStreak, curStreak); } else curStreak = 0;
@@ -171,7 +297,7 @@ export function startDashboard(port = 8002): void {
       const rows = await sql`
         SELECT id, ticket, symbol, side, qty, entry_price, stop_loss, take_profit,
                planned_rr, risk_amount, opened_at, closed_at, close_price, profit, actual_rr, result
-        FROM trades ORDER BY opened_at DESC LIMIT ${limit}
+        FROM trades WHERE symbol = ${SYMBOL} ORDER BY opened_at DESC LIMIT ${limit}
       `;
       await sql.end();
       res.json({ success: true, data: rows });
