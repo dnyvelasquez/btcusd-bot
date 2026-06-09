@@ -6,7 +6,7 @@ import { ADXEngine } from '@bot-core/strategy/indicators/adx-engine';
 import type { Candle } from '@bybit/bybit.types';
 import type { BacktestTrade, BacktestReport, BacktestMetrics, TradeResult, SignalType, BacktestParams, BlockedWindow } from './backtest.types';
 
-const WARM_UP_DAYS = 7;
+const WARM_UP_DAYS = 30;
 const MIN_QTY = 0.001;
 
 // ── Sliding-window index ───────────────────────────────────────────────────────
