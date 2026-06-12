@@ -118,6 +118,8 @@ Mínimo: 0.001 BTC. Máximo: `MAX_QTY` (configurable).
 - Cuenta en Bybit con API Key (permisos: Read + Trade)
 - Bot de Telegram (opcional) via [@BotFather](https://t.me/BotFather)
 
+> **Restricción geográfica de Bybit:** Bybit bloquea el acceso a su API (CloudFront 403) desde ciertos países, incluyendo EE.UU. Si el bot falla al iniciar con `Cannot connect to Bybit — Bybit bloqueado por geolocalizacion (CloudFront 403)...`, se necesita una VPN/IP de una región donde Bybit esté disponible.
+
 ## Instalación
 
 ```bash
@@ -230,7 +232,7 @@ Al cerrar cada operación también se inserta en `trade_results` para visualizac
 |---|---|
 | `owner_name` | Titular (desde `license-cache.json`) |
 | `account_type` | `DEMO` o `REAL` |
-| `mt5_account` | UID de Bybit (497598060) |
+| `mt5_account` | UID de Bybit (106937526) |
 | `bot_name` | `BTC Bot` |
 | `symbol` | `BTCUSDT` |
 | `profit_usd` | P&L en USD |
@@ -243,7 +245,8 @@ Dashboard embebido en el bot en `http://localhost:8002`:
 
 - **Estado Bybit API** — conexión en tiempo real (verde / rojo)
 - **Estado del bot** — semáforo con razón de bloqueo
-- **Licencia** — info del titular y modo permitido
+- **Licencia** — activación y cambio de clave desde el panel; valida contra Neon (clave, estado, vencimiento, modo permitido y UID de Bybit conectado) antes de guardar
 - **Configuración** — solo parámetros operativos editables (riesgo por operación, modo live); la estrategia validada en backtests no es editable desde el panel y se ajusta en `config.json`. Hot-reload sin reiniciar
+- **Conexión Bybit** — API Key/Secret y entorno (testnet/real) editables, con prueba de conexión antes de guardar; cambios aplican al reiniciar el bot
 - **Telegram** — configurar token, chat ID, prueba de envío
 - **Journal** — estadísticas (win rate, profit factor, avg R:R, P&L) + tabla de últimas 20 operaciones

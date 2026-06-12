@@ -32,8 +32,21 @@ function toTicket(orderId: string): number {
   return parseInt(orderId.slice(-12), 10);
 }
 
+// Bybit's CloudFront edge returns a 403 (not a normal API error) when the
+// request originates from a country Bybit blocks — surface this distinctly
+// so it isn't mistaken for invalid credentials or a license issue.
+function describeError(err: unknown): string {
+  const code = (err as { code?: unknown })?.code;
+  const body = (err as { body?: unknown })?.body;
+  if (code === 403 && typeof body === 'string' && body.includes('block access from your country')) {
+    return 'Bybit bloqueado por geolocalizacion (CloudFront 403) - la IP actual no tiene acceso a la API de Bybit';
+  }
+  return String(err);
+}
+
 export class BybitService {
   private readonly client: RestClientV5;
+  private cachedUid: number | null = null;
 
   constructor() {
     this.client = new RestClientV5({
@@ -41,6 +54,20 @@ export class BybitService {
       secret: env.BYBIT_API_SECRET,
       testnet: env.BYBIT_TESTNET,
     });
+  }
+
+  // Bybit accounts are identified by a numeric UID (unlike MT5 logins) — fetched
+  // once and cached, since it never changes for a given API key.
+  private async getUid(): Promise<number> {
+    if (this.cachedUid !== null) return this.cachedUid;
+    try {
+      const res = await this.client.getQueryApiKey();
+      if (res.retCode === 0) this.cachedUid = res.result.userID;
+    } catch (err) {
+      // Leave uncached — retried on next call
+      throw new Error(describeError(err));
+    }
+    return this.cachedUid ?? 0;
   }
 
   async getAccount(): Promise<BybitResponse<AccountInfo>> {
@@ -55,7 +82,7 @@ export class BybitService {
       return {
         success: true,
         data: {
-          login: 497598060,
+          uid: await this.getUid(),
           tradeMode: env.BYBIT_TESTNET ? 'DEMO' : 'REAL',
           balance: parseFloat(usdt.walletBalance),
           equity: parseFloat(usdt.equity),
@@ -64,7 +91,7 @@ export class BybitService {
         },
       };
     } catch (err) {
-      return { success: false, data: null as any, message: String(err) };
+      return { success: false, data: null as any, message: describeError(err) };
     }
   }
 

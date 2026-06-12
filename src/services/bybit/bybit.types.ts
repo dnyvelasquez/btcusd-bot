@@ -8,7 +8,7 @@ export interface Candle {
 }
 
 export interface AccountInfo {
-  login: number;
+  uid: number;
   tradeMode: 'DEMO' | 'REAL';
   balance: number;
   equity: number;

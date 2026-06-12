@@ -97,8 +97,11 @@ export class Application {
   }
 
   private async validateLicense(): Promise<void> {
-    const tradeMode = (await this.bybit.getAccount()).data?.tradeMode ?? 'DEMO';
-    await this.licenseService.validate(tradeMode);
+    const acct = await this.bybit.getAccount();
+    if (!acct.success) {
+      throw new Error(`Cannot connect to Bybit — ${acct.message}`);
+    }
+    await this.licenseService.validate(acct.data.tradeMode, acct.data.uid);
   }
 
   private async sync(): Promise<void> {
@@ -406,7 +409,7 @@ export class Application {
         this.openPositionTickets.add(result.orderId);
         await this.journal.recordOpen({
           ticket: result.orderId,
-          bybitAccount: acctRes.data.login.toString(),
+          bybitAccount: acctRes.data.uid.toString(),
           symbol, side: order.side, qty,
           entryPrice, stopLoss, takeProfit,
           plannedRr: sizing.riskRewardRatio,
