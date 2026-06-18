@@ -52,7 +52,7 @@ class ConfigService {
   private watcher: fs.FSWatcher | null = null;
 
   constructor() {
-    this.config = this.loadFile() ?? { SYMBOL: 'BTCUSDT', RISK_PERCENT: 1, LIVE_TRADING: false, SIGNAL_COOLDOWN_MINUTES: 60 };
+    this.config = this.mergeWithDefaults(this.loadFile());
     this.startWatcher();
   }
 
@@ -93,6 +93,18 @@ class ConfigService {
     return fromFile && fromFile.length > 0 ? fromFile : env.LICENSE_KEY;
   }
 
+  private mergeWithDefaults(file: BotConfig | null): BotConfig {
+    const defaults: BotConfig = { SYMBOL: 'BTCUSDT', RISK_PERCENT: 1, LIVE_TRADING: false, SIGNAL_COOLDOWN_MINUTES: 60 };
+    if (!file) return defaults;
+    return {
+      ...file,
+      SYMBOL: file.SYMBOL ?? defaults.SYMBOL,
+      RISK_PERCENT: file.RISK_PERCENT ?? defaults.RISK_PERCENT,
+      LIVE_TRADING: file.LIVE_TRADING ?? defaults.LIVE_TRADING,
+      SIGNAL_COOLDOWN_MINUTES: file.SIGNAL_COOLDOWN_MINUTES ?? defaults.SIGNAL_COOLDOWN_MINUTES,
+    };
+  }
+
   private loadFile(): BotConfig | null {
     try {
       return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as BotConfig;
@@ -109,8 +121,8 @@ class ConfigService {
       debounce = setTimeout(() => {
         const loaded = this.loadFile();
         if (loaded) {
-          this.config = loaded;
-          logger.info({ symbol: loaded.SYMBOL, risk: loaded.RISK_PERCENT, live: loaded.LIVE_TRADING }, 'Config reloaded');
+          this.config = this.mergeWithDefaults(loaded);
+          logger.info({ symbol: this.config.SYMBOL, risk: this.config.RISK_PERCENT, live: this.config.LIVE_TRADING }, 'Config reloaded');
         }
       }, 200);
     });
