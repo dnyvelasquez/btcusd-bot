@@ -23,7 +23,7 @@ export async function fetchHistoricalCandles(
   if (!interval) throw new Error(`Unknown timeframe: ${timeframe}`);
 
   const fromMs = new Date(fromDate).getTime();
-  const toMs   = new Date(toDate).getTime();
+  const toMs   = new Date(toDate).getTime() + 86_400_000; // include full day
 
   const all: Candle[] = [];
   let cursor = toMs; // Bybit pagination: fetch backwards from `end`
